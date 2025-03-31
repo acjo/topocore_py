@@ -1,0 +1,743 @@
+"""Abstract Simplical Complex Code."""
+
+import itertools
+from collections import defaultdict
+from itertools import combinations
+
+import networkx as nx
+import numpy as np
+from matplotlib import pyplot as plt
+from matplotlib import rcParams
+
+rcParams["font.family"] = "serif"
+rcParams["font.size"] = 15
+rcParams["axes.labelsize"] = 10
+rcParams["xtick.labelsize"] = 10
+rcParams["ytick.labelsize"] = 10
+rcParams["legend.fontsize"] = 10
+rcParams["figure.figsize"] = (7, 7)
+rcParams["figure.dpi"] = 200
+rcParams["axes.titlesize"] = 15
+
+
+def rref_mod2(A: np.ndarray) -> tuple[np.ndarray, list]:
+    """Compute the row reduced echelon form of matrix A over Z mod 2.
+
+    Parameters
+    ----------
+    A : ndarray (m,n)
+        Matrix to find the rref form of.
+
+    Returns
+    -------
+    A : ndarray(m,n)
+        A in row-reduced echelon form
+    pivot_cols : list
+        List of indices of the pivot columns
+
+    Raises
+    ------
+    ValueError
+        If matrix A is not in mod 2 form.
+    """
+    if np.any(A % 2 != A):
+        raise ValueError("Matrix A is not in mod 2 form.")
+
+    A = A.copy().astype(int)
+    m, n = A.shape
+
+    # Keep track of pivot columns
+    pivot_cols = []
+
+    i = 0  # row index
+    for j in range(n):  # iterate through columns
+        # Find pivot in column j, starting from row i
+        pivot_row = None
+        for k in range(i, m):
+            if A[k, j] == 1:
+                pivot_row = k
+                break
+
+        if pivot_row is not None:
+            # Remember this as a pivot column
+            pivot_cols.append(j)
+
+            # Swap rows if needed
+            if pivot_row != i:
+                A[[i, pivot_row]] = A[[pivot_row, i]]
+
+            # Eliminate other rows
+            for k in range(m):
+                if k != i and A[k, j] == 1:
+                    A[k] = (A[k] + A[i]) % 2
+
+            i += 1
+            if i == m:  # No more rows
+                break
+
+    return A, pivot_cols
+
+
+def nullspace_mod2(A: np.ndarray) -> list[np.ndarray]:
+    """Find a basis for the nullspace of matrix A over Z mod 2.
+
+    Parameters
+    ----------
+    A : (m,n) ndarray
+        Matrix to find the null space of
+
+    Returns
+    -------
+    basis : list of numpy arrays
+        List containing the basis vectors for the nullspace in mod2.
+
+    Raises
+    ------
+    ValueError
+        If matrix A is not in mod 2 form.
+    """
+    if np.any(A % 2 != A):
+        raise ValueError("Matrix A is not in mod 2 form.")
+    A = np.array(A) % 2  # Ensure all entries are 0 or 1
+    rref, pivot_cols = rref_mod2(A)
+
+    m, n = A.shape
+
+    # Free columns are those that aren't pivot columns
+    free_cols = [j for j in range(n) if j not in pivot_cols]
+
+    # Create basis vectors
+    basis = []
+    for free_col in free_cols:
+        # Create a vector to solve Ax = 0
+        v = np.zeros(n, dtype=int)
+        v[free_col] = 1
+
+        # Set the values for pivot variables
+        for i, pivot_col in enumerate(pivot_cols):
+            if i < rref.shape[0]:  # Check if we have this many pivot rows
+                v[pivot_col] = rref[i, free_col]
+
+        # In Z mod 2, we need to negate the values in pivot positions
+        for i, pivot_col in enumerate(pivot_cols):
+            if i < rref.shape[0]:
+                v[pivot_col] = (-v[pivot_col]) % 2
+
+        basis.append(v)
+
+    return basis
+
+
+def image_basis_mod2(A: np.ndarray) -> list[np.ndarray]:
+    """Find a basis for the image of the matrix.
+
+    (column space) of matrix A over Z mod 2
+
+    Parameters
+    ----------
+    A : (m,n) numpy array
+        Matrix to find basis of the image of.
+
+    Returns
+    -------
+    basis : list of numpy arrays
+        List of basis vectors
+
+    Raises
+    ------
+    ValueError
+        If matrix A is not in mod 2 form.
+    """
+    if np.any(A % 2 != A):
+        raise ValueError("Matrix A is not in mod 2 form.")
+    A = np.array(A) % 2  # Ensure all entries are 0 or 1
+
+    # Compute RREF and find pivot columns
+    rref, pivot_cols = rref_mod2(A)
+
+    # The pivot columns of the original matrix form a basis for the image
+    basis = [A[:, j] for j in pivot_cols]
+
+    return basis
+
+
+class SimplicialComplex(object):
+    """Simplical Complex Class.
+
+    Prameters
+    ---------
+    None
+
+    Attributes
+    ----------
+    simplices : dit[set | list]
+        set of simplicies
+    """
+
+    def __init__(self) -> None:
+        # create a dictionary that will map simplex dimension to the set of simplices
+        self.simplices = defaultdict(lambda: set())
+        # stores the maximum dimension of all p_simplices
+        self.k = -1
+        return
+
+    def add_simplex(self, simplex: set) -> None:
+        """Add simplex to simplices.
+
+        Parameters
+        ----------
+        simplex : set
+            a simplex to add to
+
+        Returns
+        -------
+        None
+        """
+        # convert to frozen set for immutability and hashability.
+        p = len(simplex) - 1
+        self.simplices[p].add(frozenset(simplex))
+        # update dimension of the complex if needed
+        if p > self.k:
+            self.k = p
+
+        # A requirement of simplicial complexes is that each face of
+        # each simplex inside the the simplicial complex also has to be a part of the
+        # simplicial complex. E.g. if [A,B,C] is the complex then [A,B], [B,C] and
+        # [A,C] also have to be inside the complex as do [A], [B], and [C]
+        for i in range(p, len(simplex) + 1):
+            for face in self._get_faces(simplex, p):
+                self.simplices[p - 1].add(face)
+        return
+
+    def set_simplices_as_lists(self) -> None:
+        """Convert simplex sets to simplex lists.
+
+        This is done to preserve relative order
+        """
+        self.simplices_list = dict()
+        for p in self.simplices:
+            self.simplices_list[p] = list(self.simplices[p])
+        return
+
+    def _get_faces(self, simplex: set, size: int) -> list[frozenset]:
+        """Get faces of a given size.
+
+        Parameters
+        ----------
+        simplex : set
+            simplex to get the face of
+        size : int
+            what dimension the face should be.
+
+        Returns
+        -------
+        faces : list of sets
+            list of sets containing the faces.
+        -------
+        """
+        return [frozenset(face) for face in combinations(simplex, size)]
+
+    def compute_boundary_matrix(self, p: int) -> np.ndarray:
+        """Compute the boundary matrix.
+
+        Computes the boundary matrix from p to p-1
+        if p == 0 (e.g. vertices) then this will return the corresponding
+        ones matrix.
+
+        Parameters
+        ----------
+        p : int
+            the dimension to map from
+
+        Returns
+        -------
+        delp : np.ndarray (M,N)
+            The boundary matrix where M is the number of p-1 simplices and N is the number of p simplices
+
+
+        Notes
+        -----
+        * If you modify the set, you will have to re-create the boundary matrix as the sets within p_simplices might change order (python sets are unordered)
+        * Between python sessions, the boundaries matrices might not have the same form (as python sets are unordered), however, the boundaries will obviously be equivalent.
+        """
+        self._check_simplex_list()
+
+        N = len(self.simplices_list[p])
+        if p == 0:
+            M = 1
+            return np.zeros((M, N), dtype=int)
+        else:
+            M = len(self.simplices_list[p - 1])
+
+        del_p = np.zeros((M, N), dtype=int)
+
+        for col, simplex in enumerate(self.simplices_list[p]):
+            for row, face in enumerate(self.simplices_list[p - 1]):
+                # In Z/2Z homology, we need to check if face is EXACTLY a p-1 face of simplex
+                if face.issubset(simplex) and len(face) == len(simplex) - 1:
+                    del_p[row, col] = 1
+
+        return del_p
+
+    def compute_boundary(
+        self, p: int, p_chain: list[frozenset]
+    ) -> tuple[np.ndarray, list[frozenset]]:
+        """Compute the boundary of a p-chain.
+
+        Given a p-chain represented as a frozen set, compute the boundary.
+
+        This is done in Mod2. e.g. 1+1 = 2
+
+        Prameters
+        ---------
+        p : int
+            The dimension of the simplicies in the p-chain
+        p_chain : list of frozen sets
+            the p_chain represented as a set of frozen sets.
+
+        Returns
+        -------
+        coefficients : ndarray
+            coefficients representing the coefficients in the formal sum
+        basis : list of frozen sets
+            the basis of the edges
+
+        Raises
+        ------
+        KeyError
+            if the p_chain is not inside the simplicial complex.
+        ValueError
+            if the elements in p_chain are not unique.
+        AttributeError
+            if simplices_list is not an attribute or if the length of simplices_list does not match the length of simplices.
+        """
+        self._check_simplex_list()
+        p_simplices = self.simplices_list[p]
+        if p > 0:
+            basis = self.simplices_list[p - 1]
+        else:
+            basis = [frozenset({"emptyset"})]
+
+        if len(set(p_chain)) != len(p_chain):
+            raise ValueError("Elements in p-chain are not unique")
+        if not all(simp in p_simplices for simp in p_chain):
+            raise KeyError(
+                "the p-chain is not contained inside the simplicial complex."
+            )
+
+        # vector representation of the p_chain in the p-simplex basis
+        vector_rep = np.zeros(len(p_simplices), dtype=int)
+        for p_simplex in p_chain:
+            index = p_simplices.index(p_simplex)
+            vector_rep[index] = 1
+
+        del_p = self.compute_boundary_matrix(p)
+
+        boundary = del_p @ vector_rep
+
+        if p == 0:
+            boundary = np.array([0] * len(basis))
+        else:
+            boundary = np.mod(boundary, 2)
+
+        return boundary, basis
+
+    def find_kernel_basis(
+        self, p: int
+    ) -> tuple[list[list[frozenset]], list[np.ndarray]]:
+        """Get a basis for the kernel of the boundary matrix ∂_p.
+
+        Parameters
+        ----------
+        p : int
+            Dimension of the boundary operator input
+
+        Returns
+        -------
+        Z_p_basis : list list of  sets
+            The basis of the kernel of the boundary operator
+        Z_p_basis
+            The basis vectors of the kernel
+
+        Raises
+        ------
+        RuntimeError
+            If the null space is incorrectly calculated.
+        """
+        self._check_simplex_list()
+
+        if p == 0:
+            basis = [self.simplices_list[0]]
+            vecs = []
+            for i in range(len(self.simplices_list[0])):
+                v = np.zeros(len(self.simplices_list[0]), dtype=int)
+                v[i] = 1
+
+                vecs.append(v)
+            return basis, vecs
+
+        del_p = self.compute_boundary_matrix(p)
+
+        basis_coefficients = nullspace_mod2(del_p)
+
+        cycles = []
+        for vec in basis_coefficients:
+            if np.any(
+                np.zeros(del_p.shape[0], dtype=int) != ((del_p @ vec) % 2)
+            ):
+                raise RuntimeError("Null space baiss incorrectly calcualted.")
+
+            cycle = []
+            for i, coef in enumerate(vec):
+                if coef == 1:
+                    simplex = self.simplices_list[p][i]
+                    cycle.append(simplex)
+
+            cycles.append(cycle)
+
+        return cycles, basis_coefficients
+
+    def find_homologies(self, p: int) -> list[list[frozenset]]:
+        """Get The homoligies of dimension p.
+
+        Parameters
+        ----------
+        p : int
+            Dimension.
+
+        Returns
+        -------
+        homolgies : list of  sets
+            The homologies of dimension p
+
+        """
+        self._check_simplex_list()
+
+        Z_p_cycles, Z_p_basis = self.find_kernel_basis(p)
+
+        # if the dimension is the same as the dimension of the simplicial complex then im(∂_{p+1}) = 0 which means H_p = ker(∂_p)/im(∂_{p+1}) = ker(∂_p)
+        if p == self.k:
+            return Z_p_cycles
+
+        # get boundary matrix.
+        del_p_plus_1 = self.compute_boundary_matrix(p + 1)
+        _, pivot_cols = rref_mod2(del_p_plus_1)
+        rank_del_p_plus_1 = len(pivot_cols)
+
+        Homologies = []
+        for vec, cycle in zip(Z_p_basis, Z_p_cycles):
+            # stack basis vector with boundary matrix
+            augmented = np.column_stack((del_p_plus_1, vec))
+            _, pivot_cols = rref_mod2(augmented)
+            rank_augmented = len(pivot_cols)
+            # if rank of the boundary operator [∂_{p+1}, b]
+            # has increased, where b is a basis vector of the nullspace of ∂_{p}
+            # that means b is NOT in the image of ∂_{p+1}, so it is in the homology
+            if rank_augmented > rank_del_p_plus_1:
+                Homologies.append(cycle)
+
+        return Homologies
+
+    def compute_homology_ranks(self):
+        """Compute the ranks.
+
+        of cycles, boundaries, and homology groups
+
+        Parameters
+        ----------
+        boundary_matrices: List of boundary matrices [∂₀, ∂₁, ∂₂, ...]
+
+        Returns
+        -------
+        ranks: Dict containing ranks of Z_n, B_n, and H_n for each dimension
+        """
+        max_dim = self.k
+        ranks = {
+            "Z": [0] * (max_dim + 1),
+            "B": [0] * (max_dim + 1),
+            "H": [0] * (max_dim + 1),
+        }
+
+        # Store boundary matrices with their shapes
+        boundary_matrices = [
+            self.compute_boundary_matrix(p) for p in range(self.k + 1)
+        ]
+
+        for p in range(max_dim + 1):
+            # Get current boundary matrix
+            del_p = boundary_matrices[p]
+
+            # 1. Compute rank of cycles Z_n = ker(∂_n)
+            if p == 0:
+                # all C_0 chains map to zero, so the nullity of ∂_0 is just the
+                # dimension of C_0.
+                ranks["Z"][p] = del_p.shape[1]
+            else:
+                # For other dimensions, compute the nullity
+                nullity = len(nullspace_mod2(boundary_matrices[p]))
+                ranks["Z"][p] = nullity
+
+            # 2. Compute rank of boundaries B_n = im(∂_{n+1})
+            if p == self.k:
+                ranks["B"][p] = 0
+            else:
+                del_n_plus_1 = boundary_matrices[p + 1]
+
+                rank = len(image_basis_mod2(del_n_plus_1))
+                ranks["B"][p] = rank
+
+                # Sanity check should never be needed if matrices are correct
+                if ranks["B"][p] > ranks["Z"][p]:
+                    print(
+                        f"WARNING: B_{p} > Z_{p}! This is mathematically impossible."
+                    )
+                    print(f"∂{p+1} shape: {del_n_plus_1.shape}")
+                    print(
+                        f"B_{p} rank: {ranks['B'][p]}, Z_{p} rank: {ranks['Z'][p]}"
+                    )
+
+            # 3. Compute homology rank
+            ranks["H"][p] = ranks["Z"][p] - ranks["B"][p]
+
+        return ranks
+
+    def visualize_complex(self) -> None:
+        """Display the complex as a NetworkX Graph.
+
+        Returns
+        -------
+        None
+        """
+        fig = plt.figure(facecolor="grey")
+        ax = fig.add_subplot(111)
+        G = nx.Graph()
+
+        for s, p_simplicies in self.simplices.items():
+            for simplex in p_simplicies:
+                val = list(simplex)
+                if s == 0:
+                    G.add_node(val[0])
+                elif s == 1:
+                    G.add_edge(val[0], val[1])
+
+        nx.draw_networkx(
+            G,
+            pos=nx.layout.circular_layout(G),
+            with_labels=True,
+            font_weight="bold",
+            ax=ax,
+        )
+        plt.show()
+
+        return
+
+    def _check_simplex_list(self) -> None:
+        if not hasattr(self, "simplices_list"):
+            raise AttributeError(
+                "You need to call set_simplices_as_lists before calling this function."
+            )
+        elif len(self.simplices_list) != len(self.simplices):
+            raise AttributeError(
+                "You need to re-call set_simplices_as_lists before calling this function."
+            )
+
+        return
+
+    def verify_boundary_matrices(self) -> None:
+        """Verify that ∂ₙ₊₁ ∘ ∂ₙ = 0 for all n.
+
+        Raises
+        ------
+        RuntimeError
+            If boundary matrix composition fails
+        """
+        self._check_simplex_list()
+
+        boundary_matrices = [
+            self.compute_boundary_matrix(p) for p in range(self.k + 1)
+        ]
+
+        for p in range(self.k):
+            del_p = boundary_matrices[p]
+            del_n_plus_1 = boundary_matrices[p + 1]
+
+            composition = del_p @ del_n_plus_1
+            composition %= 2
+
+            if np.any(composition != np.zeros_like(composition)):
+                raise RuntimeError("Boundary Matrices Should Commute to zero.")
+
+        return
+
+
+def SimplicialComplexA() -> SimplicialComplex:
+    """Instantiate and return simplical complex for first example.
+
+    Parameters
+    ----------
+    None
+
+    Returns
+    -------
+    complex : SimplicialComplex
+        returns the simplicial complex for the first example
+    """
+    # Create and populate complex A
+    complex = SimplicialComplex()
+
+    vertices = [
+        "Cow",
+        "Rabbit",
+        "Horse",
+        "Dog",
+        "Fish",
+        "Dolphin",
+        "Oyster",
+        "Broccoli",
+        "Fern",
+        "Onion",
+        "Apple",
+    ]
+
+    vertex_set = [{v} for v in vertices]
+
+    # Add 1-simplices (edges)
+    edges = [
+        {"Cow", "Rabbit"},
+        {"Cow", "Horse"},
+        {"Cow", "Dog"},
+        {"Rabbit", "Horse"},
+        {"Rabbit", "Dog"},
+        {"Horse", "Dog"},
+        {"Fish", "Dolphin"},
+        {"Fish", "Oyster"},
+        {"Dolphin", "Oyster"},
+        {"Broccoli", "Fern"},
+        {"Broccoli", "Onion"},
+        {"Broccoli", "Apple"},
+        {"Fern", "Onion"},
+        {"Fern", "Apple"},
+        {"Onion", "Apple"},
+    ]
+
+    # Add 2-simplices (triangles)
+    triangles = [
+        {"Cow", "Rabbit", "Horse"},
+        {"Cow", "Rabbit", "Dog"},
+        {"Cow", "Horse", "Dog"},
+        {"Rabbit", "Horse", "Dog"},
+        {"Fish", "Dolphin", "Oyster"},
+        {"Broccoli", "Fern", "Onion"},
+        {"Broccoli", "Fern", "Apple"},
+        {"Broccoli", "Onion", "Apple"},
+        {"Fern", "Onion", "Apple"},
+    ]
+
+    for v in vertex_set:
+        complex.add_simplex(v)
+
+    for edge in edges:
+        complex.add_simplex(edge)
+
+    for triangle in triangles:
+        complex.add_simplex(triangle)
+
+    return complex
+
+
+def SimplicialComplexB() -> SimplicialComplex:
+    """Instantiate and return simplical complex for second example.
+
+    Parameters
+    ----------
+    None
+
+    Returns
+    -------
+    complex : SimplicialComplex
+        returns the simplicial complex for the second example
+    """
+    # Create and populate complex B
+    complex = SimplicialComplex()
+
+    vertices = [
+        "Cow",
+        "Rabbit",
+        "Horse",
+        "Dog",
+        "Fish",
+        "Dolphin",
+        "Oyster",
+        "Broccoli",
+        "Fern",
+        "Onion",
+        "Apple",
+    ]
+
+    vertex_set = [{v} for v in vertices]
+
+    # Add 1-simplices (edges)
+    edges_b = [
+        {"Cow", "Rabbit"},
+        {"Cow", "Fish"},
+        {"Cow", "Oyster"},
+        {"Cow", "Broccoli"},
+        {"Cow", "Onion"},
+        {"Cow", "Apple"},
+        {"Rabbit", "Fish"},
+        {"Rabbit", "Oyster"},
+        {"Rabbit", "Broccoli"},
+        {"Rabbit", "Onion"},
+        {"Rabbit", "Apple"},
+        {"Fish", "Oyster"},
+        {"Fish", "Broccoli"},
+        {"Fish", "Onion"},
+        {"Fish", "Apple"},
+        {"Oyster", "Broccoli"},
+        {"Oyster", "Onion"},
+        {"Oyster", "Apple"},
+        {"Broccoli", "Onion"},
+        {"Broccoli", "Apple"},
+        {"Onion", "Apple"},
+        {"Horse", "Dog"},
+        {"Horse", "Dolphin"},
+        {"Horse", "Fern"},
+        {"Dog", "Dolphin"},
+        {"Dog", "Fern"},
+        {"Dolphin", "Fern"},
+    ]
+
+    # Add 2-simplices (triangles)
+    triangles_b = [
+        {"Cow", "Broccoli", "Apple"},
+        {"Cow", "Onion", "Apple"},
+        {"Rabbit", "Broccoli", "Apple"},
+        {"Rabbit", "Onion", "Apple"},
+        {"Fish", "Broccoli", "Apple"},
+        {"Fish", "Onion", "Apple"},
+        {"Oyster", "Broccoli", "Apple"},
+        {"Oyster", "Onion", "Apple"},
+    ]
+
+    for v in vertex_set:
+        complex.add_simplex(v)
+    for edge in edges_b:
+        complex.add_simplex(edge)
+    for triangle in triangles_b:
+        complex.add_simplex(triangle)
+
+    return complex
+
+
+if __name__ == "__main__":
+    complex = SimplicialComplexA()
+    complex.set_simplices_as_lists()
+    complex.verify_boundary_matrices()
+
+    p_chain = [frozenset({"Apple"})]
+
+    print(complex.compute_boundary_matrix(0))
+    print(complex.compute_boundary(0, p_chain))
+    print(complex.find_kernel_basis(0))
+    print(complex.find_homologies(0))
+    print(complex.compute_homology_ranks())

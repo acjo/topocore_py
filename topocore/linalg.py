@@ -28,7 +28,7 @@ def rref_mod2(A: np.ndarray) -> tuple[np.ndarray, list]:
     if np.any(A % 2 != A):
         raise ValueError("Matrix A is not in mod 2 form.")
 
-    A = A.copy().astype(int)
+    A = A.copy().astype(np.int64)
     m, n = A.shape
 
     # Keep track of pivot columns
@@ -37,19 +37,21 @@ def rref_mod2(A: np.ndarray) -> tuple[np.ndarray, list]:
     i = 0  # row index
     for j in range(n):  # iterate through columns
         # Find pivot in column j, starting from row i
-        pivot_row = None
+        pivot_row: int = -1
         for k in range(i, m):
             if A[k, j] == 1:
                 pivot_row = k
                 break
 
-        if pivot_row is not None:
+        if pivot_row != -1:
             # Remember this as a pivot column
             pivot_cols.append(j)
 
             # Swap rows if needed
             if pivot_row != i:
-                A[[i, pivot_row]] = A[[pivot_row, i]]
+                temp = A[i].copy()
+                A[i] = A[pivot_row]
+                A[pivot_row] = temp
 
             # Eliminate other rows
             for k in range(m):
@@ -84,7 +86,6 @@ def nullspace_mod2(A: np.ndarray) -> list[np.ndarray]:
     """
     if np.any(A % 2 != A):
         raise ValueError("Matrix A is not in mod 2 form.")
-    A = np.array(A) % 2  # Ensure all entries are 0 or 1
     rref, pivot_cols = rref_mod2(A)
 
     m, n = A.shape
@@ -96,7 +97,7 @@ def nullspace_mod2(A: np.ndarray) -> list[np.ndarray]:
     basis = []
     for free_col in free_cols:
         # Create a vector to solve Ax = 0
-        v = np.zeros(n, dtype=int)
+        v = np.zeros(n, dtype=np.int64)
         v[free_col] = 1
 
         # Set the values for pivot variables
@@ -137,7 +138,6 @@ def image_mod2(A: np.ndarray) -> list[np.ndarray]:
     """
     if np.any(A % 2 != A):
         raise ValueError("Matrix A is not in mod 2 form.")
-    A = np.array(A) % 2  # Ensure all entries are 0 or 1
 
     # Compute RREF and find pivot columns
     rref, pivot_cols = rref_mod2(A)

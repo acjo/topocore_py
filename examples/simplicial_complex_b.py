@@ -1,3 +1,5 @@
+"""Simplicial Complex B from homework."""
+
 from topocore import SimplicialComplex
 
 

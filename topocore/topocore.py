@@ -1,13 +1,14 @@
 """Abstract Simplical Complex Code."""
 
-import itertools
 from collections import defaultdict
 from itertools import combinations
 
+import pandas as pd
 import networkx as nx
 import numpy as np
 from matplotlib import pyplot as plt
 from matplotlib import rcParams
+from scipy.spatial.distance import cdist
 
 from topocore.linalg import image_mod2, nullspace_mod2, rref_mod2
 
@@ -40,7 +41,83 @@ class SimplicialComplex(object):
         self.simplices = defaultdict(lambda: set())
         # stores the maximum dimension of all p_simplices
         self.k = -1
+        self.filtration_value : float = -1.0
         return
+
+    @classmethod
+    def build_vietoris_rips_filtration(cls, max_dimension:int=3, max_file_id:int=5):
+        """
+        Build a filtered Vietoris-Rips complex from a distance matrix.
+        
+        Parameters:
+        -----------
+        max_dimension : int
+            Maximum simplex dimension to include, default 3
+        max_file_id : int
+            Maximum file number to include, default 5
+        
+        Returns:
+        --------
+        filtration_complexes : list of tuples (SimplicialComplex, threshold)
+            List of simplicial complexes at each filtration value, paired with threshold
+        """
+        data_frames = [pd.read_csv(f"examples/data/CDHWdata_{i+1}.csv") for i in range(max_file_id)]
+
+        data = pd.concat(data_frames, axis=0)
+
+        X = data.iloc[:, 1:].values
+        distance_matrix = cdist(X, X, metric="euclidean")
+        n = distance_matrix.shape[0]
+        
+        # Get unique distance values (excluding zeros on diagonal)
+        unique_distances = np.unique(distance_matrix[distance_matrix > 0])
+        filtration_values = np.sort(unique_distances)
+        
+        # Create list to store complexes at each threshold
+        filtration_complexes:list[SimplicialComplex] = []
+        
+        # For each threshold, build a complex
+        for threshold in filtration_values:
+            # Create a new simplicial complex
+            complex = SimplicialComplex()
+            complex.filtration_value = threshold
+            
+            # Add all vertices
+            for i in range(n):
+                complex.add_simplex({i})
+            
+            # Add edges (1-simplices) according to threshold
+            for i in range(n):
+                for j in range(i+1, n):
+                    if distance_matrix[i, j] <= threshold:
+                        complex.add_simplex({i, j})
+            
+            # Add higher-dimensional simplices
+            if max_dimension >= 2:
+                # For each potential k-simplex dimension (up to max_dimension)
+                for k in range(2, max_dimension + 1):
+                    # Generate all possible k-simplices by iterating through all combinations of k+1 vertices
+                    for vertices in combinations(range(n), k+1):
+                        # Check if all edges between vertices are within threshold
+                        all_edges_valid = True
+                        for i, j in combinations(vertices, 2):
+                            if distance_matrix[i, j] > threshold:
+                                all_edges_valid = False
+                                break
+                        
+                        # If all edges are valid, add the simplex
+                        if all_edges_valid:
+                            complex.add_simplex(set(vertices))
+            
+            # Set list representation for computing homology
+            complex.set_simplices_as_lists()
+            
+            # Add to our filtration
+            filtration_complexes.append(complex)
+        
+        return filtration_complexes
+
+
 
     def add_simplex(self, simplex: set) -> None:
         """Add simplex to simplices.
@@ -65,9 +142,9 @@ class SimplicialComplex(object):
         # each simplex inside the the simplicial complex also has to be a part of the
         # simplicial complex. E.g. if [A,B,C] is the complex then [A,B], [B,C] and
         # [A,C] also have to be inside the complex as do [A], [B], and [C]
-        for i in range(p, len(simplex) + 1):
-            for face in self._get_faces(simplex, p):
-                self.simplices[p - 1].add(face)
+        for i in range(p):
+            for face in self._get_faces(simplex, i+1):
+                self.simplices[i].add(face)
         return
 
     def set_simplices_as_lists(self) -> None:
@@ -431,5 +508,3 @@ class SimplicialComplex(object):
         return
 
 
-if __name__ == "__main__":
-    pass

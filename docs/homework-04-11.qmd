@@ -23,7 +23,7 @@ The releveant member functions for todays assignments are:
 
 from topocore import SimplicialComplex
 
-SimplicialComplex.build_vietoris_rips_filtration(max_dimension=2)
+SimplicialComplex.build_vietoris_rips_filtration(max_dimension=1)
 
 
 ```

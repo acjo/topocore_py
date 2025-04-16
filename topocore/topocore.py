@@ -4,13 +4,11 @@ from collections import defaultdict
 from itertools import combinations
 from pathlib import Path
 
+import dask
 import networkx as nx
 import numpy as np
-import pandas as pd
 from matplotlib import pyplot as plt
 from matplotlib import rcParams
-from scipy.spatial.distance import cdist
-from tqdm import tqdm
 
 from topocore.linalg import image_mod2, nullspace_mod2, rref_mod2
 
@@ -46,88 +44,71 @@ class SimplicialComplex(object):
         self.filtration_value: float = -1.0
         return
 
-    @classmethod
-    def build_vietoris_rips_filtration(
-        cls, max_dimension: int = 3, max_file_id: int = 5
+    @staticmethod
+    def from_vietoris_rips_complex(
+        threshold: float, distance_matrix: np.ndarray, max_dimension: int = 3
     ):
-        """
-        Build a filtered Vietoris-Rips complex from a distance matrix.
+        """Build a Vietoris-Rips complex from a distance matrix.
 
         Parameters
         ----------
+        threshold : float
+            theshold value for building the simplicial complex
+        distance_matrix : np.array
+            pairwise distance matrix. We are working directionless so we assume that the distance matrix is upper triangular
         max_dimension : int
             Maximum simplex dimension to include, default 3
-        max_file_id : int
-            Maximum file number to include, default 5
 
         Returns
         -------
-        filtration_complexes : list of tuples (SimplicialComplex, threshold)
-            List of simplicial complexes at each filtration value, paired with threshold
+        filtration_complex: SimplicialComplex
+            Simplicial Complex built from the vietoris rips filtration
         """
-        file_path = Path(__file__)
-        data_path = file_path.parent
-        data_frames = [
-            pd.read_csv(data_path / f"examples/data/CDHWdata_{i+1}.csv")
-            for i in range(max_file_id)
-        ]
+        complex = SimplicialComplex()
+        complex.filtration_value = threshold
 
-        data = pd.concat(data_frames, axis=0)
-
-        X = data.iloc[:, 1:].values
-        distance_matrix = cdist(X, X, metric="euclidean")
         n = distance_matrix.shape[0]
 
-        # Get unique distance values (excluding zeros on diagonal)
-        unique_distances = np.unique(distance_matrix[distance_matrix > 0])
-        filtration_values = np.sort(unique_distances)
+        # Add all vertices
+        for i in range(n):
+            complex.add_simplex({i})
 
-        # Create list to store complexes at each threshold
-        filtration_complexes: list[SimplicialComplex] = []
+        # add 1-simplices
+        rows, cols = np.triu_indices(n, k=1)
 
-        # For each threshold, build a complex
-        with tqdm(total=len(filtration_values)) as loop:
-            for threshold in filtration_values:
-                # Create a new simplicial complex
-                complex = SimplicialComplex()
-                complex.filtration_value = threshold
+        # Find edges that meet the threshold
+        valid_edges = distance_matrix[rows, cols] <= threshold
 
-                # Add all vertices
-                for i in range(n):
-                    complex.add_simplex({i})
+        # Get the indices of valid edges
+        valid_rows = rows[valid_edges]
+        valid_cols = cols[valid_edges]
 
-                # Add edges (1-simplices) according to threshold
-                for i in range(n):
-                    for j in range(i + 1, n):
-                        if distance_matrix[i, j] <= threshold:
-                            complex.add_simplex({i, j})
+        for i, j in zip(valid_rows, valid_cols):
+            complex.add_simplex({i, j})
 
-                # Add higher-dimensional simplices
-                if max_dimension >= 2:
-                    # For each potential k-simplex dimension (up to max_dimension)
-                    for k in range(2, max_dimension + 1):
-                        # Generate all possible k-simplices by iterating through all combinations of k+1 vertices
-                        for vertices in combinations(range(n), k + 1):
-                            # Check if all edges between vertices are within threshold
-                            all_edges_valid = True
-                            for i, j in combinations(vertices, 2):
-                                if distance_matrix[i, j] > threshold:
-                                    all_edges_valid = False
-                                    break
+        # Add higher-dimensional simplices
+        if max_dimension >= 2:
+            # For each potential k-simplex dimension (up to max_dimension)
+            for k in range(2, max_dimension + 1):
+                # Generate all possible k-simplices by iterating through all combinations of k+1 vertices
+                for vertices in combinations(range(n), k + 1):
+                    # Check if all edges between vertices are within threshold
 
-                            # If all edges are valid, add the simplex
-                            if all_edges_valid:
-                                complex.add_simplex(set(vertices))
+                    row_idx, col_idx = np.asarray(
+                        list(combinations(vertices, 2)), dtype=int
+                    ).T
 
-                # Set list representation for computing homology
-                complex.set_simplices_as_lists()
+                    all_edges_valid = (
+                        distance_matrix[row_idx, col_idx] <= threshold
+                    ).all()
 
-                # Add to our filtration
-                filtration_complexes.append(complex)
+                    # If all edges are valid, add the simplex
+                    if all_edges_valid:
+                        complex.add_simplex(set(vertices))
 
-                loop.update()
-
-        return filtration_complexes
+        # Set list representation for computing homology
+        complex.set_simplices_as_lists()
+        return complex
 
     def add_simplex(self, simplex: set) -> None:
         """Add simplex to simplices.
@@ -148,13 +129,6 @@ class SimplicialComplex(object):
         if p > self.k:
             self.k = p
 
-        # A requirement of simplicial complexes is that each face of
-        # each simplex inside the the simplicial complex also has to be a part of the
-        # simplicial complex. E.g. if [A,B,C] is the complex then [A,B], [B,C] and
-        # [A,C] also have to be inside the complex as do [A], [B], and [C]
-        for i in range(p):
-            for face in self._get_faces(simplex, i + 1):
-                self.simplices[i].add(face)
         return
 
     def set_simplices_as_lists(self) -> None:
@@ -162,9 +136,11 @@ class SimplicialComplex(object):
 
         This is done to preserve relative order
         """
+        self._is_simplicial_complex()
         self.simplices_list = dict()
         for p in self.simplices:
             self.simplices_list[p] = list(self.simplices[p])
+
         return
 
     def _get_faces(self, simplex: set, size: int) -> list[frozenset]:
@@ -490,6 +466,36 @@ class SimplicialComplex(object):
             )
 
         return
+
+    def _is_simplicial_complex(self) -> None:
+        """Check if the complex is actually a simplicial complex.
+
+        The requriement of a simplicial complex is that the face of every p-simplex is also an element of the simplicial complex.
+
+        For example for the triangle, [a,b,c] the following are required to be a part of the simplicial complex:
+            [a,b]
+            [a,c]
+            [b,c]
+            [a]
+            [b]
+            [c]
+
+        Raises
+        ------
+        RuntimeError
+            If the simplicial complex is not a complex.
+
+        """
+        keys = sorted(self.simplices.keys())
+
+        for p_minus_1, p in zip(keys[:-1], keys[1:]):
+            p_minus_1_simplcies = self.simplices[p_minus_1]
+            for p_simplex in self.simplices[p]:
+                for face in self._get_faces(p_simplex, p_minus_1 + 1):
+                    if face not in p_minus_1_simplcies:
+                        raise RuntimeError(
+                            f"This is not a valid simplicial complex. The face {face} of the {p} simplex: {p_simplex} is not a member of the set of the {p_minus_1} simplices:\n{p_minus_1_simplcies}"
+                        )
 
     def verify_boundary_matrices(self) -> None:
         """Verify that ∂ₙ₊₁ ∘ ∂ₙ = 0 for all n.

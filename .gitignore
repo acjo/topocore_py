@@ -180,3 +180,7 @@ pyrightconfig.json
 *.html
 
 docs/**/
+
+*.DS_Store
+
+docs/*.pptx

@@ -26,6 +26,8 @@ dependencies = [
     "notebook==7.4.0",
     "networkx==3.4.2",
     "matplotlib==3.9.4",
+    "pyarrow==19.0.1",
+    "dask[complete]"
 ]
 dynamic = ["version"]
 [project.urls]

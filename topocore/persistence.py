@@ -9,7 +9,7 @@ from topocore.linalg import rref_mod2
 from topocore.topocore import SimplicialComplex
 
 
-def compute_persistence_pairs(boundary_matrices: list[np.ndarray]):
+def compute_persistence_pairs(boundary_matrices):
     """Compute persistence pairs from a list of boundary matrices.
 
     Parameters
@@ -25,89 +25,96 @@ def compute_persistence_pairs(boundary_matrices: list[np.ndarray]):
     max_dim = len(boundary_matrices) - 1
     pairs = defaultdict(list)
 
-    # Maps each column to its filtration index
-    # We need to know the total number of columns across all dimensions
-    total_cols = sum(matrix.shape[1] for matrix in boundary_matrices)
+    # Track the lowest non-zero entry for each column
+    lowest = {}  # Maps (dim, col_idx) to row_idx
 
-    # Initialize the reduced matrices
-    R = [np.copy(matrix) for matrix in boundary_matrices]
-
-    # Initialize the lowest non-zero entry for each column
-    lowest = {}  # Map (dim, col) -> row index of lowest entry
-
-    # Dictionary to track paired columns
-    paired_cols = set()
-
-    # Process matrices by increasing dimension
+    # First, compute the lowest non-zero entry for each column in each dimension
     for dim in range(max_dim + 1):
-        matrix = R[dim]
-        m, n = matrix.shape
+        matrix = boundary_matrices[dim]
+        _, n = matrix.shape
 
-        if dim < max_dim:
-            next_matrix = R[dim + 1]
-            m_next, n_next = next_matrix.shape
-
-            # Reduce the boundary matrix for dimension p+1
-            for j in range(n_next):
-                col = next_matrix[:, j].copy()
-
-                # Continue reducing until no more reductions possible
-                while True:
-                    # Find non-zero entries
-                    non_zero = np.where(col == 1)[0]
-                    if len(non_zero) == 0:
-                        break
-
-                    # Find the lowest non-zero entry
-                    pivot_row = np.max(non_zero)
-
-                    # Find if there's a column with the same lowest entry
-                    pivot_col = None
-                    for k in range(n):
-                        if (dim, k) in lowest and lowest[(dim, k)] == pivot_row:
-                            pivot_col = k
-                            break
-
-                    # If no column with this pivot found, we're done reducing
-                    if pivot_col is None:
-                        break
-
-                    # Add column pivot_col to column j (mod 2)
-                    col = np.mod(col + matrix[:, pivot_col], 2)
-
-                # Save the reduced column back
-                next_matrix[:, j] = col
-
-                # Check if this forms a persistence pair
-                non_zero = np.where(col == 1)[0]
-                if len(non_zero) > 0:
-                    pivot_row = np.max(non_zero)
-
-                    # Find the column that corresponds to this pivot
-                    for k in range(n):
-                        if (dim, k) in lowest and lowest[(dim, k)] == pivot_row:
-                            # This forms a (birth, death) pair
-                            pairs[dim].append(((dim, k), (dim + 1, j)))
-                            paired_cols.add((dim, k))
-                            paired_cols.add((dim + 1, j))
-                            break
-
-                    # Remember this pivot
-                    lowest[(dim + 1, j)] = pivot_row
-
-        # For each unpaired column in this dimension, it represents a homology class
         for j in range(n):
-            if (dim, j) not in paired_cols:
-                # Find if this is a cycle (column with all zeros)
-                if np.all(matrix[:, j] == 0):
-                    # This is an essential class (infinite persistence)
-                    pairs[dim].append(((dim, j), (float("inf"), float("inf"))))
-                else:
-                    # Find the pivot
-                    non_zero = np.where(matrix[:, j] == 1)[0]
-                    if len(non_zero) > 0:
-                        pivot_row = np.max(non_zero)
-                        lowest[(dim, j)] = pivot_row
+            col = matrix[:, j]
+            non_zero = np.where(col == 1)[0]
+
+            if len(non_zero) > 0:
+                pivot = np.max(non_zero)
+                lowest[(dim, j)] = pivot
+
+    # Now compute persistence pairs
+    for dim in range(max_dim):
+        matrix = boundary_matrices[dim]
+        next_matrix = boundary_matrices[dim + 1]
+
+        m, n = matrix.shape
+        _, n_next = next_matrix.shape
+
+        # Set to track which columns are paired
+        paired_birth = set()
+        paired_death = set()
+
+        # Process each column in the next dimension
+        for j in range(n_next):
+            col = next_matrix[:, j].copy()
+
+            # Reduce the column
+            while True:
+                non_zero = np.where(col == 1)[0]
+                if len(non_zero) == 0:
+                    break
+
+                pivot = np.max(non_zero)
+
+                # Find a column with the same pivot
+                pivot_col = None
+                for k in range(n):
+                    if (
+                        (dim, k) in lowest
+                        and lowest[(dim, k)] == pivot
+                        and k not in paired_birth
+                    ):
+                        pivot_col = k
+                        break
+
+                if pivot_col is None:
+                    break
+
+                # Add column pivot_col to column j (this is where we need to be careful)
+                # Both columns reference the same matrix, so they have compatible shapes
+                reducer_col = matrix[:, pivot_col]
+                col = np.mod(col + reducer_col, 2)
+
+            # After reduction, check if this column creates a persistence pair
+            non_zero = np.where(col == 1)[0]
+            if len(non_zero) > 0:
+                pivot = np.max(non_zero)
+
+                # Find a column with this pivot
+                for k in range(n):
+                    if (
+                        (dim, k) in lowest
+                        and lowest[(dim, k)] == pivot
+                        and k not in paired_birth
+                    ):
+                        # Create persistence pair
+                        pairs[dim].append((k, j))
+                        paired_birth.add(k)
+                        paired_death.add(j)
+                        break
+
+            # Update the lowest entry for this column
+            if len(non_zero) > 0:
+                lowest[(dim + 1, j)] = np.max(non_zero)
+
+        # Essential classes in dimension dim
+        for j in range(n):
+            if (dim, j) in lowest and j not in paired_birth:
+                pairs[dim].append((j, float("inf")))
+
+    # Essential classes in the highest dimension
+    for j in range(boundary_matrices[max_dim].shape[1]):
+        if (max_dim, j) in lowest and j not in paired_death:
+            pairs[max_dim].append((j, float("inf")))
 
     return pairs
 

@@ -46,72 +46,6 @@ class SimplicialComplex(object):
         return
 
     @staticmethod
-    def from_vietoris_rips_complex(
-        threshold: float, distance_matrix: np.ndarray, max_dimension: int = 3
-    ):
-        """Build a Vietoris-Rips complex from a distance matrix.
-
-        Parameters
-        ----------
-        threshold : float
-            theshold value for building the simplicial complex
-        distance_matrix : np.array
-            pairwise distance matrix. We are working directionless so we assume that the distance matrix is upper triangular
-        max_dimension : int
-            Maximum simplex dimension to include, default 3
-
-        Returns
-        -------
-        filtration_complex: SimplicialComplex
-            Simplicial Complex built from the vietoris rips filtration
-        """
-        complex = SimplicialComplex()
-        complex.filtration_value = threshold
-
-        n = distance_matrix.shape[0]
-
-        # Add all vertices
-        for i in range(n):
-            complex.add_simplex({i})
-
-        # add 1-simplices
-        rows, cols = np.triu_indices(n, k=1)
-
-        # Find edges that meet the threshold
-        valid_edges = distance_matrix[rows, cols] <= threshold
-
-        # Get the indices of valid edges
-        valid_rows = rows[valid_edges]
-        valid_cols = cols[valid_edges]
-
-        for i, j in zip(valid_rows, valid_cols):
-            complex.add_simplex({i, j})
-
-        # Add higher-dimensional simplices
-        if max_dimension >= 2:
-            # For each potential k-simplex dimension (up to max_dimension)
-            for k in range(2, max_dimension + 1):
-                # Generate all possible k-simplices by iterating through all combinations of k+1 vertices
-                for vertices in combinations(range(n), k + 1):
-                    # Check if all edges between vertices are within threshold
-
-                    row_idx, col_idx = np.asarray(
-                        list(combinations(vertices, 2)), dtype=int
-                    ).T
-
-                    all_edges_valid = (
-                        distance_matrix[row_idx, col_idx] <= threshold
-                    ).all()
-
-                    # If all edges are valid, add the simplex
-                    if all_edges_valid:
-                        complex.add_simplex(set(vertices))
-
-        # Set list representation for computing homology
-        complex.set_simplices_as_lists()
-        return complex
-
-    @staticmethod
     def build_filtration_incrementally(
         distance_matrix: np.ndarray,
         thresholds: np.ndarray,
@@ -281,8 +215,9 @@ class SimplicialComplex(object):
         """
         self._is_simplicial_complex()
         self.simplices_list = dict()
-        for p in self.simplices:
-            self.simplices_list[p] = list(self.simplices[p])
+        for p, simp in self.simplices.items():
+            simplex_list = [sorted(list(v)) for v in simp]
+            self.simplices_list[p] = sorted(simplex_list)
 
         return
 

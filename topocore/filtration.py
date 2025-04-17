@@ -79,86 +79,14 @@ class VRFiltration(object):
             )
         )
 
-        filtration_complexes_2: list[SimplicialComplex] = []
-
-        idx = len(filtration_values) if sub_sample is None else sub_sample
-
-        with tqdm(
-            total=len(filtration_values[:idx]),
-            desc=f"Building filtrations...",
-        ) as loop:
-            for threshold in filtration_values[:idx]:
-                complex = SimplicialComplex.from_vietoris_rips_complex(
-                    threshold, distance_matrix, max_dimension=max_dimension
-                )
-
-                filtration_complexes_2.append(complex)
-
-                loop.update()
-
-        self.filtration_complexes_2: list[SimplicialComplex] = (
-            filtration_complexes_2
-        )
-
         return
 
-    def _test(self) -> bool:
-        with tqdm(
-            total=len(self.filtration_complexes), desc="testing..."
-        ) as loop:
-            for c1, c2 in zip(
-                self.filtration_complexes,
-                self.filtration_complexes_2,
-                strict=True,
-            ):
-                l1 = len(c1.simplices_list)
-                l2 = len(c2.simplices_list)
-                if l1 != l2:
-                    print(
-                        f"simplices dicts not the same length: length 1 {l1}, length 2 {l2}"
-                    )
-                    return False
-                if c1.k != c2.k:
-                    print(
-                        f"demsnsion not the same length: length 1 {c1.k}, length 2 {c2.k}"
-                    )
-                    return False
-
-                for (dim1, p_simp1), (dim2, p_simp2) in zip(
-                    c1.simplices_list.items(), c2.simplices_list.items()
-                ):
-                    if dim1 != dim2:
-                        print(
-                            f"Dimensions don't match: dimension 1: {dim1}, dimension 2: {dim2}."
-                        )
-                        return False
-
-                    l1 = len(p_simp1)
-                    l2 = len(p_simp2)
-
-                    if l1 != l2:
-                        print(
-                            f"Simplices list not the same length. Length 1: {l1}, Length 2: {l2}."
-                        )
-                        return False
-
-                    if not all(v1 in p_simp2 for v1 in p_simp1):
-                        print(f"There are simplices in p_simp1 not in p_simp2.")
-                        return False
-
-                    if not all(v2 in p_simp1 for v2 in p_simp2):
-                        print(f"There are simplices in p_simp2 not in p_simp1.")
-                        return False
-                loop.update()
-
-        return True
-
-    def compute_persistent_homology(self, max_dim=None):
+    def compute_persistent_homology(self, max_dim: Optional[int] = None):
         """Compute persistent homology for the filtration.
 
         Parameters
         ----------
-        max_dim : int, optional
+        max_dim : int, Optional
             Maximum dimension to compute homology for. If None, uses self.max_dimension
 
         Returns
@@ -174,7 +102,9 @@ class VRFiltration(object):
         )
         return diagram
 
-    def plot_persistence_diagram(self, max_dim=None, title=None):
+    def plot_persistence_diagram(
+        self, max_dim: Optional[int] = None, title: Optional[str] = None
+    ):
         """Plot the persistence diagram.
 
         Parameters
@@ -195,7 +125,9 @@ class VRFiltration(object):
 
         return plt_obj
 
-    def plot_barcode(self, max_dim=None, title=None):
+    def plot_barcode(
+        self, max_dim: Optional[int] = None, title: Optional[str] = None
+    ):
         """Plot the barcode representation of the persistence diagram.
 
         Parameters
@@ -303,7 +235,11 @@ class VRFiltration(object):
 
         return plt
 
-    def analyze_persistence(self, max_dim=None, persistence_threshold=None):
+    def analyze_persistence(
+        self,
+        max_dim: Optional[int] = None,
+        persistence_threshold: Optional[float] = None,
+    ):
         """Analyze the persistence diagram to identify significant features.
 
         Parameters
@@ -340,7 +276,7 @@ class VRFiltration(object):
 
         # Set threshold to 75th percentile if not provided
         if persistence_threshold is None:
-            persistence_threshold = np.percentile(all_persistence, 75)
+            persistence_threshold = float(np.percentile(all_persistence, 75))
 
         significant_features = {
             "threshold": persistence_threshold,

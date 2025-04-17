@@ -9,7 +9,7 @@ from topocore.linalg import rref_mod2
 from topocore.topocore import SimplicialComplex
 
 
-def compute_persistence_pairs(boundary_matrices):
+def compute_persistence_pairs(boundary_matrices: list[np.ndarray]):
     """Compute persistence pairs from a list of boundary matrices.
 
     Parameters
@@ -112,7 +112,9 @@ def compute_persistence_pairs(boundary_matrices):
     return pairs
 
 
-def compute_persistence_diagram(filtration_complexes, max_dimension=2):
+def compute_persistence_diagram(
+    filtration_complexes: list[SimplicialComplex], max_dimension: int = 2
+):
     """Compute the persistence diagram for a filtration.
 
     Parameters
@@ -206,7 +208,7 @@ def compute_persistence_diagram(filtration_complexes, max_dimension=2):
 
 
 def plot_persistence_diagram(
-    diagram, max_dimension=2, title="Persistence Diagram"
+    diagram: dict, max_dimension: int = 2, title: str = "Persistence Diagram"
 ):
     """Plot the persistence diagram.
 

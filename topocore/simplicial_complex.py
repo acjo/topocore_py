@@ -268,7 +268,10 @@ class SimplicialComplex(object):
         for col, simplex in enumerate(self.simplices_list[p]):
             for row, face in enumerate(self.simplices_list[p - 1]):
                 # In Z/2Z homology, we need to check if face is EXACTLY a p-1 face of simplex
-                if face.issubset(simplex) and len(face) == len(simplex) - 1:
+                if (
+                    set(face).issubset(set(simplex))
+                    and len(face) == len(simplex) - 1
+                ):
                     del_p[row, col] = 1
 
         return del_p
@@ -592,3 +595,37 @@ class SimplicialComplex(object):
                 raise RuntimeError("Boundary Matrices Should Commute to zero.")
 
         return
+
+    def verify_euler_characteristic(self) -> bool:
+        """
+        Verify that the sum of Betti numbers matches the Euler characteristic.
+
+        The Euler characteristic can be computed in two ways:
+        1. χ = Σ (-1)^i * number of i-simplices
+        2. χ = Σ (-1)^i * β_i (where β_i is the ith Betti number)
+
+        These two calculations should yield the same result.
+
+        Returns
+        -------
+        bool
+            True if the check passes, False otherwise
+        """
+        self._check_simplex_list()
+
+        # Calculate Euler characteristic from simplex counts
+        euler_from_simplices = 0
+        for dim, simplices in self.simplices.items():
+            euler_from_simplices += (-1) ** dim * len(simplices)
+
+        # Calculate homology ranks
+        ranks = self.compute_homology_ranks()
+        betti_numbers = ranks["H"]
+
+        # Calculate Euler characteristic from Betti numbers
+        euler_from_betti = 0
+        for dim, betti in enumerate(betti_numbers):
+            euler_from_betti += (-1) ** dim * betti
+
+        # Check if they match
+        return euler_from_simplices == euler_from_betti

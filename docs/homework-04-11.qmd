@@ -20,9 +20,13 @@ So we only find what simplices need to be added as our threshold increases.
 2. compute_persistent_homology: This computes the persistence pairs for the filtration and returns a list of tuples with (birth,death, dimension)
 3. plot_persistence_diagram: Plots the persistence diagram.
 
+The code for viewing should be in the files ```persistence.py```, ```filtration.py```, ```simplicial_complex.py``` and ```linalg.py```.
+
 We can see the plots below in @fig-persistence-diagram-plots.
 
-On the left hand side are some print outs of some progress logging to see where we are in the computation. As the caption of @fig-persistence-diagram-plots states, we downsampled to 20 points instead of the full 93 on these diagrams.
+As the caption of @fig-persistence-diagram-plots states, we downsampled to 20 points instead of the full 93 on these diagrams.
+
+We also verify that the betti numbers match the Euler-characteristic which is part of the output to the left of the plots.
 
 ```{python}
 #| label: fig-persistence-diagram-plots
@@ -39,22 +43,27 @@ from topocore import VRFiltration
 from matplotlib import pyplot as plt
 filtration = VRFiltration(max_dimension=3,file_id=0)
 persistence_pairs = filtration.compute_persistent_homology()
+filtration.verify_homology_calculations()
 filtration.plot_persistence_diagram(persistence_pairs)
 plt.show()
 filtration = VRFiltration(max_dimension=3,file_id=1)
 persistence_pairs = filtration.compute_persistent_homology()
+filtration.verify_homology_calculations()
 filtration.plot_persistence_diagram(persistence_pairs)
 plt.show()
 filtration = VRFiltration(max_dimension=3,file_id=2)
 persistence_pairs = filtration.compute_persistent_homology()
+filtration.verify_homology_calculations()
 filtration.plot_persistence_diagram(persistence_pairs)
 plt.show()
 filtration = VRFiltration(max_dimension=3,file_id=3)
 persistence_pairs = filtration.compute_persistent_homology()
+filtration.verify_homology_calculations()
 filtration.plot_persistence_diagram(persistence_pairs)
 plt.show()
 filtration = VRFiltration(max_dimension=3,file_id=4)
 persistence_pairs = filtration.compute_persistent_homology()
+filtration.verify_homology_calculations()
 filtration.plot_persistence_diagram(persistence_pairs)
 plt.show()
 ```

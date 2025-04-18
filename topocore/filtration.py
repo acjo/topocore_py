@@ -82,21 +82,15 @@ class VRFiltration(object):
             A list of (birth, death, dimension) tuples representing the persistence diagram
         """
         # Build the boundary matrix for the persistence algorithm
-        print("Buidling boundary matrix...")
         D, simplex_info = build_persistence_boundary_matrix(self)
-        print("Complete!")
 
         # Reduce the boundary matrix
-        print("Reducing boundary matrix...")
         R, low = reduce_boundary_matrix(D)
-        print("Complete!")
 
         # Extract the persistence pairs
-        print("Extracting persistence pairs...")
         persistence_pairs = extract_persistence_pairs(
             R, low, simplex_info, self
         )
-        print("Complete!")
 
         return persistence_pairs
 
@@ -178,3 +172,15 @@ class VRFiltration(object):
         plt.axis("equal")
 
         return fig
+
+    def verify_homology_calculations(self):
+        """Verify homology calculations by checking the Euler characteristic."""
+        print("Verifying homology calculations\nusing Euler characteristic...")
+
+        if all(
+            complex.verify_euler_characteristic()
+            for complex in self.filtration_complexes
+        ):
+            print(f"Euler characteristic check passed")
+        else:
+            print(f"Warning: Euler characteristic check failed.")

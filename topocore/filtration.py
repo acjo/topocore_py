@@ -1,8 +1,6 @@
 """Filtration code."""
 
-from itertools import chain
 from pathlib import Path
-from types import NoneType
 from typing import Optional
 
 import numpy as np
@@ -10,15 +8,11 @@ import pandas as pd
 from matplotlib import pyplot as plt
 from matplotlib import rcParams
 from scipy.spatial.distance import cdist
-from tqdm import tqdm
 
-from topocore.linalg import image_mod2, nullspace_mod2, rref_mod2
-from topocore.persistence import (
-    compute_persistence_diagram,
-    compute_persistence_pairs,
-    plot_persistence_diagram,
-)
-from topocore.topocore import SimplicialComplex
+from topocore.simplicial_complex import SimplicialComplex
+from topocore.persistence import (reduce_boundary_matrix, 
+                                  build_persistence_boundary_matrix, 
+                                  extract_persistence_pairs)
 
 rcParams["font.family"] = "serif"
 rcParams["font.size"] = 15
@@ -80,3 +74,102 @@ class VRFiltration(object):
         )
 
         return
+
+    def compute_persistent_homology(self):
+        """Compute persistent homology for a filtration.
+        
+        Parameters
+        ----------
+        filtration : VRFiltration
+            Vietoris-Rips filtration object
+        
+        Returns
+        -------
+        persistence_pairs : list
+            A list of (birth, death, dimension) tuples representing the persistence diagram
+        """
+        # Build the boundary matrix for the persistence algorithm
+        print("Buidling boundary matrix...")
+        D, simplex_info = build_persistence_boundary_matrix(self)
+        print("Complete!")
+        
+        # Reduce the boundary matrix
+        print("Reducing boundary matrix...")
+        print(D.shape)
+        R, low = reduce_boundary_matrix(D)
+        print("Complete!")
+        
+        # Extract the persistence pairs
+        print("Extracting persistence pairs...")
+        persistence_pairs = extract_persistence_pairs(R, low, simplex_info, self)
+        print("Complete!")
+        
+        return persistence_pairs
+
+    def plot_persistence_diagram(self, persistence_pairs:list, max_dimension:int=3):
+        """Plot the persistence diagram.
+        
+        Parameters
+        ----------
+        persistence_pairs : list
+            A list of (birth, death, dimension) tuples
+        max_dimension : int
+            Maximum dimension to include in the plot
+        
+        Returns
+        -------
+        fig : matplotlib.figure.Figure
+            The figure object
+        """
+        # Separate points by dimension
+        points_by_dim = {p: [] for p in range(max_dimension + 1)}
+        
+        for birth, death, dim in persistence_pairs:
+            if 0 <= dim <= max_dimension:  # Ensure dimension is within range
+                points_by_dim[dim].append((birth, death))
+        
+        # Plot
+        fig = plt.figure()
+        colors = ['red', 'blue', 'green', 'purple', 'orange']
+        markers = ['o', 's', '^', 'D', 'x']
+        
+        # Find max value for setting plot limits
+        max_val = 0
+        for dim in points_by_dim:
+            for birth, death in points_by_dim[dim]:
+                if death != float('inf'):
+                    max_val = max(max_val, death)
+                max_val = max(max_val, birth)
+        
+        max_val *= 1.1  # Add some margin
+        
+        # Plot points for each dimension
+        for dim in points_by_dim:
+            births = []
+            deaths = []
+            
+            for birth, death in points_by_dim[dim]:
+                births.append(birth)
+                # Handle infinite persistence by plotting at the top
+                if death == float('inf'):
+                    deaths.append(max_val)
+                else:
+                    deaths.append(death)
+            
+            if births:  # Only plot if there are points
+                plt.scatter(births, deaths, color=colors[dim % len(colors)], 
+                        marker=markers[dim % len(markers)], 
+                        label=f'H_{dim}', alpha=0.7)
+        
+        # Plot the diagonal
+        plt.plot([0, max_val], [0, max_val], 'k--', alpha=0.5)
+        plt.xlim(left=-0.25)
+        
+        plt.xlabel('Birth')
+        plt.ylabel('Death')
+        plt.title('Persistence Diagram')
+        plt.legend()
+        plt.grid(True, alpha=0.3)
+        plt.axis('equal')
+        
+        return fig

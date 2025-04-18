@@ -1,15 +1,10 @@
 """Topological data analysis library."""
 
-__version__ = "0.0.1"
+__version__ = "0.1.0"
 
-from .filtration import VRFiltration
-from .linalg import image_mod2, nullspace_mod2, rref_mod2
-from .persistence import (
-    compute_persistence_diagram,
-    compute_persistence_pairs,
-    plot_persistence_diagram,
-)
-from .topocore import SimplicialComplex
+from topocore.filtration import VRFiltration
+from topocore.linalg import image_mod2, nullspace_mod2, rref_mod2
+from topocore.simplicial_complex import SimplicialComplex
 
 __all__ = [
     "image_mod2",

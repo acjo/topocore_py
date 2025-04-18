@@ -12,7 +12,4 @@ __all__ = [
     "rref_mod2",
     "SimplicialComplex",
     "VRFiltration",
-    "compute_persistence_diagram",
-    "compute_persistence_pairs",
-    "plot_persistence_diagram",
 ]

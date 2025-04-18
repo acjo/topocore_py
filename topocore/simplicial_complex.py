@@ -75,113 +75,107 @@ class SimplicialComplex(object):
 
         # Process each threshold value
 
-        with tqdm(
-            total=len(thresholds), desc="Building filtrations..."
-        ) as loop:
-            for threshold in thresholds:
-                # Create a new complex or copy the previous one if it exists
-                if not filtration:
-                    complex = SimplicialComplex()
+        for threshold in thresholds:
+            # Create a new complex or copy the previous one if it exists
+            if not filtration:
+                complex = SimplicialComplex()
 
-                    # Add all vertices (these are always included)
-                    for i in range(n):
-                        complex.add_simplex({i})
-                else:
-                    # Create a deep copy of the previous complex
-                    complex = SimplicialComplex()
-                    complex.k = filtration[-1].k
+                # Add all vertices (these are always included)
+                for i in range(n):
+                    complex.add_simplex({i})
+            else:
+                # Create a deep copy of the previous complex
+                complex = SimplicialComplex()
+                complex.k = filtration[-1].k
 
-                    # Copy existing simplices
-                    for dim, simplices in filtration[-1].simplices.items():
-                        complex.simplices[dim] = simplices.copy()
+                # Copy existing simplices
+                for dim, simplices in filtration[-1].simplices.items():
+                    complex.simplices[dim] = simplices.copy()
 
-                # Set filtration value
-                complex.filtration_value = threshold
+            # Set filtration value
+            complex.filtration_value = threshold
 
-                # Add 1-simplices (edges) that satisfy the new threshold
-                rows, cols = np.triu_indices(n, k=1)
+            # Add 1-simplices (edges) that satisfy the new threshold
+            rows, cols = np.triu_indices(n, k=1)
 
-                # Find edges that meet the threshold and haven't been added yet
-                for i, j in zip(rows, cols):
-                    edge = frozenset({i, j})
-                    if (
-                        edge not in added_edges
-                        and distance_matrix[i, j] <= threshold
-                    ):
-                        complex.add_simplex(set(edge))
-                        added_edges.add(edge)
+            # Find edges that meet the threshold and haven't been added yet
+            for i, j in zip(rows, cols):
+                edge = frozenset({i, j})
+                if (
+                    edge not in added_edges
+                    and distance_matrix[i, j] <= threshold
+                ):
+                    complex.add_simplex(set(edge))
+                    added_edges.add(edge)
 
-                # Add higher-dimensional simplices
-                if max_dimension >= 2:
-                    # For each potential simplex dimension
-                    for k in range(2, max_dimension + 1):
-                        # We only need to check k-simplices whose (k-1)-faces are all in the complex
-                        # Use the 1-skeleton (edges) to determine potential k-simplices
+            # Add higher-dimensional simplices
+            if max_dimension >= 2:
+                # For each potential simplex dimension
+                for k in range(2, max_dimension + 1):
+                    # We only need to check k-simplices whose (k-1)-faces are all in the complex
+                    # Use the 1-skeleton (edges) to determine potential k-simplices
 
-                        # Find all k+1 sized combinations of vertices that could form a k-simplex
-                        # This is where we can be smarter than checking all combinations
-                        potential_vertices = []
+                    # Find all k+1 sized combinations of vertices that could form a k-simplex
+                    # This is where we can be smarter than checking all combinations
+                    potential_vertices = []
 
-                        # Get all edges as pairs of vertices
-                        edges = [
-                            (tuple(e)[0], tuple(e)[1])
-                            for e in complex.simplices[1]
-                        ]
+                    # Get all edges as pairs of vertices
+                    edges = [
+                        (tuple(e)[0], tuple(e)[1]) for e in complex.simplices[1]
+                    ]
 
-                        # Build graph from edges for faster checking
-                        graph = defaultdict(set)
-                        for v1, v2 in edges:
-                            graph[v1].add(v2)
-                            graph[v2].add(v1)
+                    # Build graph from edges for faster checking
+                    graph = defaultdict(set)
+                    for v1, v2 in edges:
+                        graph[v1].add(v2)
+                        graph[v2].add(v1)
 
-                        # Find k+1 cliques in the graph
-                        # For large graphs, we'd use a more efficient algorithm
-                        # but for simplicity, we'll use a basic approach
+                    # Find k+1 cliques in the graph
+                    # For large graphs, we'd use a more efficient algorithm
+                    # but for simplicity, we'll use a basic approach
 
-                        # Start with vertices
-                        vertices = list(range(n))
+                    # Start with vertices
+                    vertices = list(range(n))
 
-                        # For each potential starting vertex
-                        for start_vertex in vertices:
-                            # Find all k-sized combinations from its neighbors
-                            # that could form a (k+1)-clique with the start vertex
-                            if len(graph[start_vertex]) >= k:
-                                for neighbors in combinations(
-                                    graph[start_vertex], k
+                    # For each potential starting vertex
+                    for start_vertex in vertices:
+                        # Find all k-sized combinations from its neighbors
+                        # that could form a (k+1)-clique with the start vertex
+                        if len(graph[start_vertex]) >= k:
+                            for neighbors in combinations(
+                                graph[start_vertex], k
+                            ):
+                                # Check if these neighbors form a clique
+                                if all(
+                                    v2 in graph[v1]
+                                    for v1, v2 in combinations(neighbors, 2)
                                 ):
-                                    # Check if these neighbors form a clique
-                                    if all(
-                                        v2 in graph[v1]
-                                        for v1, v2 in combinations(neighbors, 2)
-                                    ):
-                                        # This is a (k+1)-clique: [start_vertex] + neighbors
-                                        potential_vertices.append(
-                                            (start_vertex,) + neighbors
-                                        )
+                                    # This is a (k+1)-clique: [start_vertex] + neighbors
+                                    potential_vertices.append(
+                                        (start_vertex,) + neighbors
+                                    )
 
-                        # Add new k-simplices
-                        for vertices in potential_vertices:
-                            simplex = frozenset(vertices)
-                            if simplex not in added_simplices[k]:
-                                # Check if all edges meet the threshold
-                                row_idx, col_idx = np.asarray(
-                                    list(combinations(vertices, 2)), dtype=int
-                                ).T
+                    # Add new k-simplices
+                    for vertices in potential_vertices:
+                        simplex = frozenset(vertices)
+                        if simplex not in added_simplices[k]:
+                            # Check if all edges meet the threshold
+                            row_idx, col_idx = np.asarray(
+                                list(combinations(vertices, 2)), dtype=int
+                            ).T
 
-                                all_edges_valid = (
-                                    distance_matrix[row_idx, col_idx]
-                                    <= threshold
-                                ).all()
+                            all_edges_valid = (
+                                distance_matrix[row_idx, col_idx] <= threshold
+                            ).all()
 
-                                # If all edges are valid, add the simplex
-                                if all_edges_valid:
-                                    complex.add_simplex(set(simplex))
-                                    added_simplices[k].add(simplex)
+                            # If all edges are valid, add the simplex
+                            if all_edges_valid:
+                                complex.add_simplex(set(simplex))
+                                added_simplices[k].add(simplex)
 
-                # Set list representation for computing homology
-                complex.set_simplices_as_lists()
-                filtration.append(complex)
-                loop.update()
+            # Set list representation for computing homology
+            complex.set_simplices_as_lists()
+            filtration.append(complex)
 
         return filtration
 

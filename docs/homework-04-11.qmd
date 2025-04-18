@@ -9,21 +9,84 @@ toc-depth: 4
 ---
 
 
-## Overview
+# Persistent Homologies
 
 We build on what we did for the last coding assignment.
-The releveant member functions for todays assignments are:
+The releveant functions/classes for todays assignments are:
 
-1. build_vietoris_rips_filtration: This is a class method that will build a filtration for threshold values from the pairwise distance matrix.
-2.
+1. VRFiltration: This uses our SimplicialComplex class we defined last week to create a filtration.
+This is done incrementally as we know $K_i \subset K_j$ when $i > j$.
+So we only find what simplices need to be added as our threshold increases.
+2. compute_persistent_homology: This computes the persistence pairs for the filtration and returns a list of tuples with (birth,death, dimension)
+3. plot_persistence_diagram: Plots the persistence diagram.
 
+We can see the plots below in @fig-persistence-diagram-plots.
 
+On the left hand side are some print outs of some progress logging to see where we are in the computation. As the caption of @fig-persistence-diagram-plots states, we downsampled to 20 points instead of the full 93 on these diagrams.
 
 ```{python}
+#| label: fig-persistence-diagram-plots
+#| fig-cap: "Persistance diagrams for the data in each file for the homework. We downsample the vertices so here we are showing the persistence diagrams of 20 points instead of the full 93 points."
+#| fig-subcap:
+#|   - "Persistence diagram 1"
+#|   - "Persistence diagram 2"
+#|   - "Persistence diagram 3"
+#|   - "Persistence diagram 4"
+#|   - "Persistence diagram 5"
+#| layout-ncol: 2
 
-from topocore import SimplicialComplex
-
-SimplicialComplex.build_vietoris_rips_filtration(max_dimension=1)
-
-
+from topocore import VRFiltration
+from matplotlib import pyplot as plt
+filtration = VRFiltration(max_dimension=3,file_id=0)
+persistence_pairs = filtration.compute_persistent_homology()
+filtration.plot_persistence_diagram(persistence_pairs)
+plt.show()
+filtration = VRFiltration(max_dimension=3,file_id=1)
+persistence_pairs = filtration.compute_persistent_homology()
+filtration.plot_persistence_diagram(persistence_pairs)
+plt.show()
+filtration = VRFiltration(max_dimension=3,file_id=2)
+persistence_pairs = filtration.compute_persistent_homology()
+filtration.plot_persistence_diagram(persistence_pairs)
+plt.show()
+filtration = VRFiltration(max_dimension=3,file_id=3)
+persistence_pairs = filtration.compute_persistent_homology()
+filtration.plot_persistence_diagram(persistence_pairs)
+plt.show()
+filtration = VRFiltration(max_dimension=3,file_id=4)
+persistence_pairs = filtration.compute_persistent_homology()
+filtration.plot_persistence_diagram(persistence_pairs)
+plt.show()
 ```
+
+
+## Interpretation/Analysis
+
+These persistence diagram shows the birth and death times of different homological features ($H_i$, $0 \leq i \leq 3$) throughout the filtration.
+
+$H_1$ features (red circles) - These represent connected components:
+
+There are several $H_1$ features born around the 0-3 range that die between 3.5-5.5
+One notable $H_1$ feature born around $3.5$ that dies around $15$
+These indicate how points cluster together as the filtration progresses
+
+$H_2$ features (blue squares) - These represent loops or holes:
+
+Most $H_2$ features appear concentrated along the diagonal (short-lived)
+A few $H_1$ features born around 5 persist longer before dying around 6.3
+The concentration of H₁ features at higher threshold values (around 10-15) suggests complex loop structures forming late in the filtration
+
+$H_2$ features (green triangles) - These represent voids or cavities:
+
+Similar pattern to $H_1$, mostly concentrated along the diagonal
+No significantly persistent $H_2$ features stand out
+
+$H_3$ features (purple diamonds) - These represent higher-dimensional voids:
+Appear mainly at higher threshold values and ollow similar pattern to $H_2$ features
+
+Features away from the diagonal - Points further from the diagonal represent features that persist longer and are typically more significant topologically.
+The red H₀ features - The pattern indicates the data likely has a few distinct clusters that merge as the threshold increases.
+The diagonal features - The many features near the diagonal (especially for $H_1$, $H_2$, and $H_3$) likely represent noise in the data.
+Threshold ranges - The significant topological structure emerges in the 3-6 range, where you see the most interesting persistent features.
+
+We conclude that it has a few persistent connected components (clusters) but relatively few significant persistent loops or higher-dimensional structures, suggesting a dataset with distinct groupings but without complex internal structures within those groups.

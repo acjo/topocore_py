@@ -100,7 +100,7 @@ class SimplicialComplex(object):
 
             # Find edges that meet the threshold and haven't been added yet
             for i, j in zip(rows, cols):
-                edge = frozenset({i, j})
+                edge = frozenset({int(i), int(j)})
                 if (
                     edge not in added_edges
                     and distance_matrix[i, j] <= threshold
@@ -127,8 +127,8 @@ class SimplicialComplex(object):
                     # Build graph from edges for faster checking
                     graph = defaultdict(set)
                     for v1, v2 in edges:
-                        graph[v1].add(v2)
-                        graph[v2].add(v1)
+                        graph[int(v1)].add(int(v2))
+                        graph[int(v2)].add(int(v1))
 
                     # Find k+1 cliques in the graph
                     # For large graphs, we'd use a more efficient algorithm
@@ -501,12 +501,13 @@ class SimplicialComplex(object):
 
         return ranks
 
-    def visualize_complex(self) -> None:
+    def visualize_complex(self) -> nx.Graph:
         """Display the complex as a NetworkX Graph.
 
         Returns
         -------
-        None
+        G : NetworkX graph
+            Graph containig vertices and edges
         """
         fig = plt.figure(facecolor="grey")
         ax = fig.add_subplot(111)
@@ -522,14 +523,15 @@ class SimplicialComplex(object):
 
         nx.draw_networkx(
             G,
-            pos=nx.layout.circular_layout(G),
+            # pos=nx.layout.spring_layout(G, k=0.7),
+            pos=nx.nx_agraph.graphviz_layout(G),
+            node_size=150,
+            font_size=8,
             with_labels=True,
             font_weight="bold",
             ax=ax,
         )
-        plt.show()
-
-        return
+        return G
 
     def _check_simplex_list(self) -> None:
         if not hasattr(self, "simplices_list"):

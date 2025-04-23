@@ -277,8 +277,8 @@ class SimplicialComplex(object):
         return del_p
 
     def compute_boundary(
-        self, p: int, p_chain: list[frozenset]
-    ) -> tuple[np.ndarray, list[frozenset]]:
+        self, p: int, p_chain: list[list]
+    ) -> tuple[np.ndarray, list[list]]:
         """Compute the boundary of a p-chain.
 
         Given a p-chain represented as a frozen set, compute the boundary.
@@ -310,14 +310,17 @@ class SimplicialComplex(object):
         """
         self._check_simplex_list()
         p_simplices = self.simplices_list[p]
+        p_chain = sorted([sorted(simplex) for simplex in p_chain])
+        p_chain_set = set([frozenset(simplex) for simplex in p_chain])
         if p > 0:
             basis = self.simplices_list[p - 1]
         else:
-            basis = [frozenset({"emptyset"})]
+            basis = [["emptyset"]]
 
-        if len(set(p_chain)) != len(p_chain):
+        if len(p_chain_set) != len(p_chain):
             raise ValueError("Elements in p-chain are not unique")
-        if not all(simp in p_simplices for simp in p_chain):
+        del p_chain_set
+        if not all(simp in p_simplices for simp in p_simplices):
             raise KeyError(
                 "the p-chain is not contained inside the simplicial complex."
             )
@@ -533,7 +536,10 @@ class SimplicialComplex(object):
             raise AttributeError(
                 "You need to call set_simplices_as_lists before calling this function."
             )
-        elif len(self.simplices_list) != len(self.simplices):
+        elif len(self.simplices_list) != len(self.simplices) or any(
+            len(self.simplices[p]) != len(self.simplices_list[p])
+            for p in self.simplices
+        ):
             raise AttributeError(
                 "You need to re-call set_simplices_as_lists before calling this function."
             )

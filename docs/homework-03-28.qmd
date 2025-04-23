@@ -75,10 +75,10 @@ del_0_a = complex_a.compute_boundary_matrix(0)
 del_1_a = complex_a.compute_boundary_matrix(1)
 del_2_a = complex_a.compute_boundary_matrix(2)
 
-columns_0 = ["{" +", ".join(list(s)) + "}" for s in complex_a.simplices[0]]
-columns_1 = ["{" +", ".join(list(s)) + "}" for s in complex_a.simplices[1]]
+columns_0 = ["{" +", ".join(list(s)) + "}" for s in complex_a.simplices_list[0]]
+columns_1 = ["{" +", ".join(list(s)) + "}" for s in complex_a.simplices_list[1]]
 rows_1 = columns_0
-columns_2 = ["{" + ", ".join(list(s)) +"}" for s in complex_a.simplices[2]]
+columns_2 = ["{" + ", ".join(list(s)) +"}" for s in complex_a.simplices_list[2]]
 rows_2 = columns_1
 
 data_0 = {c0: del_0_a[:, i] for i, c0 in enumerate(columns_0)}
@@ -180,9 +180,9 @@ This is exactly what we get if you look at @tbl-boundaries-a
 #|   - 'Boundary of 2-chain'
 #| layout-ncol: 1
 #| tbl-colwidths: [40, 40]
-p_chain_0 = [frozenset({"Cow"}), frozenset({"Rabbit"})]
-p_chain_1 = [frozenset({"Horse", "Dog"}), frozenset({"Fish", "Dolphin"}), frozenset({"Fish", "Oyster"})]
-p_chain_2 = [frozenset({"Rabbit", "Horse", "Dog"})]
+p_chain_0 = [["Cow"], ["Rabbit"]]
+p_chain_1 = [["Horse", "Dog"], ["Fish", "Dolphin"], ["Fish", "Oyster"]]
+p_chain_2 = [["Rabbit", "Horse", "Dog"]]
 
 coeff00, basis00 =complex_a.compute_boundary(0, p_chain_0)
 coeff0, basis0 = complex_a.compute_boundary(1, p_chain_1)
@@ -197,13 +197,13 @@ index1 = []
 
 for c, b in zip(coeff00, basis00):
     data00["Coefficient Z mod 2"].append(c)
-    index00.append(b)
+    index00.append(b[0])
 for c, b in zip(coeff0, basis0):
     data0["Coefficient Z mod 2"].append(c)
-    index0.append(b)
+    index0.append(b[0])
 for c, b in zip(coeff1, basis1):
     data1["Coefficient Z mod 2"].append(c)
-    index1.append(b)
+    index1.append(b[0])
 
 df_00 = pd.DataFrame(data=data00,index=index00)
 df_0 = pd.DataFrame(data=data0,index=index0)
@@ -248,9 +248,9 @@ The boundaries of these $p$-chains will be equivalent. And we can check that we 
 #| layout-ncol: 1
 #| tbl-colwidths: [40, 40]
 
-p_chain_0 = [frozenset({"Rabbit"})]
-p_chain_1 = [frozenset({"Horse", "Dog"}), frozenset({"Horse", "Dolphin"}), frozenset({"Dog", "Dolphin"})]
-p_chain_2 = [frozenset({"Rabbit", "Onion", "Apple"})]
+p_chain_0 = [["Rabbit"]]
+p_chain_1 = [["Horse", "Dog"], ["Horse", "Dolphin"], ["Dog", "Dolphin"]]
+p_chain_2 = [["Rabbit", "Onion", "Apple"]]
 coeff00, basis00 =complex_b.compute_boundary(0, p_chain_0)
 coeff0, basis0 = complex_b.compute_boundary(1, p_chain_1)
 coeff1, basis1 = complex_b.compute_boundary(2, p_chain_2)
@@ -264,13 +264,13 @@ index1 = []
 
 for c, b in zip(coeff00, basis00):
     data00["Coefficient Z mod 2"].append(c)
-    index00.append(b)
+    index00.append(b[0])
 for c, b in zip(coeff0, basis0):
     data0["Coefficient Z mod 2"].append(c)
-    index0.append(b)
+    index0.append(b[0])
 for c, b in zip(coeff1, basis1):
     data1["Coefficient Z mod 2"].append(c)
-    index1.append(b)
+    index1.append(b[0])
 
 df_00 = pd.DataFrame(data=data00,index=index00)
 df_0 = pd.DataFrame(data=data0,index=index0)

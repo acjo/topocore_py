@@ -138,9 +138,6 @@ def extract_persistence_pairs(R, low, simplex_info, filtration):
     """
     persistence_pairs = []
     
-    # Keep track of which rows are paired
-    paired_rows = set(low.values())
-    
     # Process birth-death pairs
     for j in low:
         i = low[j]

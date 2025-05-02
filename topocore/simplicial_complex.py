@@ -501,7 +501,7 @@ class SimplicialComplex(object):
 
         return ranks
 
-    def visualize_complex(self) -> nx.Graph:
+    def visualize_complex(self, title: str = "") -> nx.Graph:
         """Display the complex as a NetworkX Graph.
 
         Returns
@@ -509,8 +509,9 @@ class SimplicialComplex(object):
         G : NetworkX graph
             Graph containig vertices and edges
         """
-        fig = plt.figure(facecolor="grey")
+        fig = plt.figure()
         ax = fig.add_subplot(111)
+        ax.set_title(title)
         G = nx.Graph()
 
         for s, p_simplicies in self.simplices.items():
@@ -523,7 +524,6 @@ class SimplicialComplex(object):
 
         nx.draw_networkx(
             G,
-            # pos=nx.layout.spring_layout(G, k=0.7),
             pos=nx.nx_agraph.graphviz_layout(G),
             node_size=150,
             font_size=8,
